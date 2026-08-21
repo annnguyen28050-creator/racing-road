@@ -1,0 +1,1502 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Racing Road</title>
+
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
+
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            width: 100vw;
+            height: 100vh;
+            overflow: hidden;
+            background: #000;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        /* --- NÚT MENU --- */
+        #menu-btn {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            width: 110px;
+            height: 48px;
+            background-image: url('menu.png');
+            background-size: contain;
+            background-repeat: no-repeat;
+            background-position: center;
+            cursor: pointer;
+            z-index: 999;
+            transition: transform 0.2s;
+        }
+
+        #menu-btn:hover {
+            transform: scale(1.05);
+        }
+
+        /* --- BẢNG ĐIỂM & THỜI GIAN --- */
+        #stats-container {
+            position: absolute;
+            top: 78px;
+            left: 20px;
+            display: none;
+            flex-direction: column;
+            gap: 6px;
+            z-index: 999;
+        }
+
+        .stat-box {
+            width: 110px;
+            background: rgba(0, 0, 0, 0.85);
+            border: 2px solid #ffcc00;
+            border-radius: 4px;
+            padding: 4px 8px;
+            text-align: center;
+            box-shadow: 0 3px 0 rgba(0,0,0,0.5);
+        }
+
+        .stat-label {
+            font-family: "Courier New", monospace;
+            font-size: 9px;
+            font-weight: bold;
+            color: #ffcc00;
+            letter-spacing: 1px;
+            margin-bottom: 1px;
+        }
+
+        /* --- 5 CƠ HỘI / TRÁI TIM --- */
+        #hearts-container {
+            width: 110px;
+            min-height: 42px;
+            background: rgba(0, 0, 0, 0.85);
+            border: 2px solid #ffcc00;
+            border-radius: 4px;
+            padding: 5px 6px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 3px;
+            box-shadow: 0 3px 0 rgba(0,0,0,0.5);
+        }
+
+        #hearts-label {
+            font-family: "Courier New", monospace;
+            font-size: 9px;
+            font-weight: bold;
+            color: #ffcc00;
+            letter-spacing: 1px;
+        }
+
+        #hearts-row {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 3px;
+            width: 100%;
+            min-height: 20px;
+        }
+
+        .heart-icon {
+            width: 17px;
+            height: 17px;
+            object-fit: contain;
+            image-rendering: auto;
+            transition: opacity 0.15s, transform 0.15s;
+        }
+
+        .heart-icon.lost {
+            opacity: 0.18;
+            filter: grayscale(1);
+        }
+
+        #heartBonusText {
+            position: absolute;
+            font-family: 'Press Start 2P', monospace;
+            font-size: 12px;
+            color: #ffcc00;
+            text-shadow: 2px 2px 0 #000;
+            pointer-events: none;
+            opacity: 0;
+            transform: translateY(0);
+            transition: opacity 0.15s, transform 0.5s;
+            z-index: 1200;
+        }
+
+        #heartBonusText.show {
+            opacity: 1;
+            transform: translateY(-24px);
+        }
+
+        #gameOverOverlay {
+            position: absolute;
+            inset: 0;
+            background: rgba(0,0,0,0.68);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 150;
+        }
+
+        #gameOverBox {
+            width: min(520px, 85%);
+            background: rgba(25, 25, 25, 0.96);
+            border: 4px solid #ffcc00;
+            border-radius: 14px;
+            padding: 28px;
+            text-align: center;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.8);
+        }
+
+        #gameOverTitle {
+            font-family: 'Press Start 2P', monospace;
+            color: #ff4444;
+            font-size: 28px;
+            text-shadow: 3px 3px 0 #000;
+            margin-bottom: 18px;
+        }
+
+        #gameOverInfo {
+            color: #fff;
+            font-size: 16px;
+            line-height: 1.7;
+            margin-bottom: 20px;
+        }
+
+        #restart-btn {
+            font-family: 'Segoe UI', monospace;
+            background: #ffcc00;
+            color: #000;
+            border: 3px solid #000;
+            border-radius: 50px;
+            padding: 12px 24px;
+            cursor: pointer;
+            font-size: 11px;
+            box-shadow: 0 4px 0 rgba(0,0,0,0.5);
+        }
+
+        #restart-btn:active {
+            transform: translateY(2px);
+            box-shadow: 0 2px 0 rgba(0,0,0,0.5);
+        }
+
+        .stat-value {
+            font-family: "Courier New", monospace;
+            font-size: 16px;
+            font-weight: bold;
+            color: #ffffff;
+            text-shadow: 1px 1px 0px #ff0000;
+        }
+
+        /* --- POPUP MENU --- */
+        #menu-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: rgba(0, 0, 0, 0.6);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 2000;
+        }
+
+        #menu-box {
+            position: relative;
+            width: 480px;
+            height: 320px;
+            background-image: url('wood.png');
+            background-size: 100% 100%;
+            background-repeat: no-repeat;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 16px;
+            padding: 20px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.7);
+        }
+
+        .menu-title {
+            font-family: 'Press Start 2P', monospace;
+            font-size: 20px;
+            color: #ffffff;
+            text-shadow: 2px 2px 0px #000;
+            letter-spacing: 1px;
+            margin-bottom: -2px;
+        }
+
+        .sound-container {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            background: rgba(0, 0, 0, 0.35);
+            padding: 6px 16px;
+            border-radius: 20px;
+            border: 2px solid #5a3818;
+        }
+
+        .sound-icon {
+            font-size: 16px;
+        }
+
+        .sound-label {
+            font-family: 'Press Start 2P', monospace;
+            font-size: 9px;
+            color: #ffffff;
+            text-shadow: 1px 1px 0px #000;
+            letter-spacing: 1px;
+        }
+
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 44px;
+            height: 22px;
+            cursor: pointer;
+        }
+
+        .switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .slider {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #666;
+            transition: .3s;
+            border-radius: 22px;
+            border: 1px solid #000;
+        }
+
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 16px;
+            width: 16px;
+            left: 2px;
+            bottom: 2px;
+            background-color: white;
+            transition: .3s;
+            border-radius: 50%;
+        }
+
+        input:checked + .slider {
+            background-color: #1b8a4a;
+        }
+
+        input:checked + .slider:before {
+            transform: translateX(22px);
+        }
+
+        .menu-btn-action {
+            cursor: pointer;
+            border: none;
+            background: transparent;
+            transition: transform 0.1s;
+        }
+
+        .menu-btn-action:active {
+            transform: translateY(2px);
+        }
+
+        #continue-btn {
+            font-family: 'Press Start 2P', monospace;
+            background-color: #1b8a4a;
+            color: white;
+            font-size: 11px;
+            letter-spacing: 1px;
+            text-shadow: none;
+            padding: 10px 32px;
+            border-radius: 50px;
+            border: 3px solid #000;
+            box-shadow: 0 4px 0 rgba(0,0,0,0.5);
+        }
+
+        #continue-btn:active {
+            transform: translateY(2px);
+            box-shadow: 0 2px 0 rgba(0,0,0,0.5);
+        }
+
+        #exit-btn {
+            display: inline-block;
+            width: 140px;
+            height: 45px;
+            background-image: url('exit.png');
+            background-size: contain;
+            background-repeat: no-repeat;
+            background-position: center;
+        }
+
+        #exit-btn:hover {
+            transform: scale(1.05);
+        }
+
+        /* --- COUNTDOWN --- */
+        #countdown-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.4);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
+        }
+
+        #countdown-text {
+            font-family: 'Press Start 2P', monospace;
+            font-size: 60px;
+            color: #ffcc00;
+            text-shadow: 4px 4px 0px #ff0000, 8px 8px 0px #000;
+            animation: pulseText 0.8s infinite alternate;
+        }
+
+        @keyframes pulseText {
+            from { transform: scale(1); }
+            to { transform: scale(1.1); }
+        }
+
+        .screen {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            background-size: cover;
+            background-position: center;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+            z-index: 10;
+        }
+
+        #screen-start3 {
+            background-image: url('start3.png');
+        }
+
+        #screen-start4 {
+            background-image: url('start4.png');
+            display: none;
+        }
+
+        /* --- GUIDE --- */
+        #screen-guide {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            background: rgba(10, 15, 25, 0.92);
+            display: none;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 15;
+            color: white;
+            padding: 30px;
+        }
+
+        .guide-box {
+            background: rgba(25, 35, 50, 0.95);
+            border: 4px solid #ffcc00;
+            border-radius: 16px;
+            width: 90%;
+            max-width: 1100px;
+            padding: 30px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.8);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 25px;
+        }
+
+        .guide-title {
+            font-size: 32px;
+            font-weight: bold;
+            color: #ffcc00;
+            text-transform: uppercase;
+            text-align: center;
+            text-shadow: 2px 2px 0px #000;
+            letter-spacing: 1px;
+        }
+
+        .guide-steps-container {
+            display: flex;
+            justify-content: space-around;
+            width: 100%;
+            gap: 20px;
+        }
+
+        .guide-card {
+            background: rgba(0, 0, 0, 0.5);
+            border: 2px solid #4CAF50;
+            border-radius: 12px;
+            flex: 1;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+            gap: 15px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.5);
+        }
+
+        .guide-img-box {
+            width: 120px;
+            height: 150px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 8px;
+            padding: 5px;
+        }
+
+        .guide-img-box img {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+        }
+
+        .guide-step-text {
+            font-size: 18px;
+            line-height: 1.5;
+            color: #ffffff;
+            font-weight: 600;
+        }
+
+        .guide-step-text span {
+            color: #ffcc00;
+            display: block;
+            font-size: 20px;
+            margin-bottom: 5px;
+        }
+
+        .guide-btn {
+            background-color: #ffcc00;
+            color: #000;
+            font-size: 20px;
+            font-weight: bold;
+            padding: 14px 40px;
+            border: none;
+            border-radius: 50px;
+            cursor: pointer;
+            box-shadow: 0 5px 0 #b38f00;
+            transition: transform 0.1s, background-color 0.2s;
+            margin-top: 5px;
+            text-transform: uppercase;
+        }
+
+        .guide-btn:hover {
+            background-color: #ffe033;
+        }
+
+        .guide-btn:active {
+            transform: translateY(3px);
+            box-shadow: 0 2px 0 #b38f00;
+        }
+
+        /* --- GAME --- */
+        #game-container {
+            display: none;
+            width: 100vw;
+            height: 100vh;
+            position: relative;
+        }
+
+        #game-main {
+            flex: 1;
+            height: 100%;
+            position: relative;
+            overflow: hidden;
+            background-color: #2d5a27;
+        }
+
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+            image-rendering: pixelated;
+            image-rendering: crisp-edges;
+        }
+
+        /* --- SIDEBAR --- */
+        #sidebar {
+            width: 33.333%;
+            height: 100%;
+            background: linear-gradient(135deg, #141414 0%, #1a150e 100%);
+            color: white;
+            display: flex;
+            flex-direction: column;
+            padding: 12px;
+            gap: 12px;
+            border-left: 2px solid rgba(255, 165, 0, 0.4);
+            box-shadow: inset 5px 0 15px rgba(255, 165, 0, 0.05);
+            z-index: 5;
+            position: relative;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        #camera-section {
+            width: 100%;
+            height: 54%;
+            display: flex;
+            flex-direction: column;
+            background: rgba(18, 18, 18, 0.9);
+            border: 1px solid rgba(255, 165, 0, 0.3);
+            border-radius: 8px;
+            padding: 8px;
+            overflow: hidden;
+            box-shadow: 0 0 10px rgba(255, 165, 0, 0.1);
+        }
+
+        #camera-box {
+            position: relative;
+            width: 100%;
+            flex: 1;
+            background: #000;
+            border: 1px solid rgba(255, 165, 0, 0.2);
+            border-radius: 6px;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        #webcam {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transform: scaleX(-1);
+        }
+
+        #output_canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            transform: scaleX(-1);
+            pointer-events: none;
+        }
+
+        /* --- VẠCH KẺ MỜ MỐC ĐẦU GỐI TRÊN CAMERA --- */
+        .threshold-line {
+            position: absolute;
+            left: 0;
+            width: 100%;
+            height: 2px;
+            background: rgba(255, 204, 0, 0.5);
+            border-bottom: 1px dashed rgba(255, 255, 255, 0.6);
+            top: 75%;
+            pointer-events: none;
+            z-index: 10;
+        }
+        
+        .threshold-label {
+            position: absolute;
+            right: 10px;
+            top: calc(55% - 16px);
+            font-size: 10px;
+            color: rgba(255, 204, 0, 0.8);
+            font-family: monospace;
+            background: rgba(0, 0, 0, 0.6);
+            padding: 2px 4px;
+            border-radius: 3px;
+            pointer-events: none;
+            z-index: 10;
+        }
+
+        /* --- STATUS PANEL & PILL CARDS --- */
+        #status-panel {
+            width: 100%;
+            flex: 1;
+            background: rgba(18, 18, 18, 0.9);
+            border: 1px solid rgba(255, 165, 0, 0.3);
+            border-radius: 8px;
+            padding: 12px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            box-shadow: 0 0 10px rgba(255, 165, 0, 0.1);
+        }
+
+        .hud-title {
+            font-size: 12px;
+            font-weight: 700;
+            color: #ffaa00;
+            text-align: center;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+        }
+
+        .pill-card {
+            background: rgba(0, 0, 0, 0.75);
+            border: 1.5px solid rgba(255, 170, 0, 0.4);
+            border-radius: 30px;
+            padding: 8px 16px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.8);
+        }
+
+        .pill-label {
+            font-size: 13px;
+            font-weight: 600;
+            color: #ccc;
+        }
+
+        .pill-value {
+            font-size: 14px;
+            font-weight: 700;
+            color: #ffcc00;
+        }
+
+        #alertBox {
+            background: rgba(255, 170, 0, 0.15);
+            border: 1.5px dashed rgba(255, 170, 0, 0.6);
+            padding: 10px;
+            border-radius: 12px;
+            text-align: center;
+            color: #ffcc00;
+            font-size: 12px;
+            font-weight: 600;
+            line-height: 1.4;
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- CÁC THẺ AUDIO (ĐÃ CẬP NHẬT TÊN FILE NHẠC THEO YÊU CẦU) -->
+    <audio id="bgMusic" src="jazz.mp3" loop preload="auto"></audio>
+    <audio id="startSound" src="start.mp3" preload="auto"></audio>
+    <audio id="playMusic" src="play.mp3" loop preload="auto"></audio>
+    <audio id="winSound" src="win.mp3" preload="auto"></audio>
+
+    <!-- MENU -->
+    <div id="menu-btn" onclick="openMenu(event)"></div>
+
+    <!-- STATS -->
+    <div id="stats-container">
+
+        <div class="stat-box">
+            <div class="stat-label">SCORE</div>
+            <div id="scoreVal" class="stat-value">0</div>
+        </div>
+
+        <div class="stat-box">
+            <div class="stat-label">TIME (s)</div>
+            <div id="timeVal" class="stat-value">0</div>
+        </div>
+
+        <div id="hearts-container">
+            <div id="hearts-label">CHANCES</div>
+            <div id="hearts-row"></div>
+        </div>
+
+    </div>
+
+    <!-- POPUP MENU -->
+    <div id="menu-overlay">
+        <div id="menu-box">
+            <div class="menu-title">MENU</div>
+            <div class="sound-container">
+                <span class="sound-icon">🔊</span>
+                <span class="sound-label" id="soundStatusText">SOUND: ON</span>
+                <label class="switch">
+                    <input type="checkbox" id="soundToggle" checked onchange="toggleSound()">
+                    <span class="slider"></span>
+                </label>
+            </div>
+            <button class="menu-btn-action" id="continue-btn" onclick="continueGame()">CONTINUE</button>
+            <button class="menu-btn-action" id="exit-btn" onclick="exitGame()"></button>
+        </div>
+    </div>
+
+    <!-- START SCREENS -->
+    <div id="screen-start3" class="screen" onclick="goToStart4()"></div>
+    <div id="screen-start4" class="screen" onclick="goToGuideScreen()"></div>
+
+    <!-- THÔNG BÁO CONTINUE GAME -->
+    <div id="resume-popup" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.8); z-index: 3000; justify-content: center; align-items: center;">
+        <div style="background: #252525; padding: 30px; border-radius: 20px; border: 4px solid #ffcc00; text-align: center; color: white; font-family: 'Segoe UI', sans-serif; max-width: 400px;">
+            <h2 style="color: #ffcc00; margin-bottom: 15px;">continue?</h2>
+            <p id="resume-info" style="font-size: 16px; margin-bottom: 25px; line-height: 1.5;"></p>
+            <div style="display: flex; gap: 15px; justify-content: center;">
+                <button onclick="confirmResume(true)" style="padding: 10px 25px; background: #1b8a4a; border: none; color: white; border-radius: 10px; cursor: pointer; font-weight: bold;">CÓ</button>
+                <button onclick="confirmResume(false)" style="padding: 10px 25px; background: #cc0000; border: none; color: white; border-radius: 10px; cursor: pointer; font-weight: bold;">KHÔNG</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- GUIDE -->
+    <div id="screen-guide">
+        <div class="guide-box">
+            <div class="guide-title">HƯỚNG DẪN ĐỘNG TÁC TẬP LUYỆN</div>
+            <div class="guide-steps-container">
+                <div class="guide-card">
+                    <div class="guide-img-box"><img src="run.png" alt="Chạy bộ tại chỗ"></div>
+                    <div class="guide-step-text"><span>Động tác 1</span>Chạy bộ tại chỗ nâng cao đùi để xe tiến về phía trước.</div>
+                </div>
+                <div class="guide-card">
+                    <div class="guide-img-box"><img src="right.png" alt="Giơ tay phải"></div>
+                    <div class="guide-step-text"><span>Động tác 2</span>Giơ tay phải lên cao để xe chuyển sang làn phải.</div>
+                </div>
+                <div class="guide-card">
+                    <div class="guide-img-box"><img src="left.png" alt="Giơ tay trái"></div>
+                    <div class="guide-step-text"><span>Động tác 3</span>Giơ tay trái lên cao để xe chuyển sang làn trái.</div>
+                </div>
+            </div>
+            <button class="guide-btn" onclick="startCountdown()">BẮT ĐẦU CHƠI</button>
+        </div>
+    </div>
+
+    <!-- GAME -->
+    <div id="game-container">
+        <div id="game-main">
+            <canvas id="gameCanvas"></canvas>
+            <div id="countdown-overlay">
+                <div id="countdown-text">3</div>
+            </div>
+            <div id="heartBonusText">+10 ❤️</div>
+
+            <!-- GAME OVER -->
+            <div id="gameOverOverlay">
+                <div id="gameOverBox">
+                    <div id="gameOverTitle">GAME OVER</div>
+                    <div id="gameOverInfo">
+                        Xe đã hết 5 cơ hội.<br>Hãy nghỉ một chút rồi thử lại nhé!
+                        <br><br>
+                        <strong>ĐIỂM: <span id="finalScore">0</span></strong>
+                    </div>
+                    <button id="restart-btn" onclick="restartGame()">CHƠI LẠI</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- SIDEBAR -->
+        <div id="sidebar">
+            <div id="camera-section">
+                <div class="hud-title" style="margin-bottom: 6px;">[ Camera theo dõi ]</div>
+                <div id="camera-box">
+                    <video id="webcam" autoplay playsinline></video>
+                    <canvas id="output_canvas"></canvas>
+                    <div class="threshold-line"></div>
+                    <div class="threshold-label">Mốc đùi</div>
+                </div>
+            </div>
+
+            <div id="status-panel">
+                <div class="hud-title">[ BẢNG THÔNG SỐ VẬN ĐỘNG ]</div>
+                <div class="pill-card">
+                    <span class="pill-label">Giơ tay phải:</span>
+                    <span id="rightHandCountText" class="pill-value">0 lần</span>
+                </div>
+                <div class="pill-card">
+                    <span class="pill-label">Giơ tay trái:</span>
+                    <span id="leftHandCountText" class="pill-value">0 lần</span>
+                </div>
+                <div class="pill-card">
+                    <span class="pill-label">Số bước chạy:</span>
+                    <span id="stepCountText" class="pill-value">0 bước</span>
+                </div>
+                <div id="alertBox">
+                    HÃY GIƠ TAY TRÁI HOẶC PHẢI LÊN CAO ĐỂ ĐỔI LÀN!
+                </div>
+            </div>
+        </div>
+    </div>
+
+<script>
+    let isGameStarted = false;
+    let isSoundOn = true;
+    let stepCounter = 0;
+    let rightHandCounter = 0;
+    let leftHandCounter = 0;
+
+    let lastStepTime = 0;
+    let lastRightHandTime = 0;
+    let lastLeftHandTime = 0;
+    const HAND_COOLDOWN = 600;
+
+    const KNEE_Y_THRESHOLD = 0.55; 
+    const STEP_COOLDOWN = 200;
+
+    window.addEventListener('DOMContentLoaded', () => {
+        updateHeartsUI();
+        initMediaPipeCameraOnly();
+    });
+
+    function tryPlayMusic() {
+        let music = document.getElementById('bgMusic');
+        if (isSoundOn && music.paused) {
+            music.play().catch(error => console.log(error));
+        }
+    }
+
+    function goToStart4() {
+        tryPlayMusic();
+        document.getElementById('screen-start3').style.display = 'none';
+        document.getElementById('screen-start4').style.display = 'flex';
+
+        const savedGame = localStorage.getItem('f1_saved_game');
+        if (savedGame) {
+            const data = JSON.parse(savedGame);
+            const info = `Hệ thống ghi nhận ván chơi trước:\nĐiểm: ${data.score} | Tim: ${data.hearts}\nBạn có muốn chơi tiếp không?`;
+            document.getElementById('resume-info').innerText = info;
+            document.getElementById('resume-popup').style.display = 'flex';
+        }
+    }
+
+    function confirmResume(shouldResume) {
+        document.getElementById('resume-popup').style.display = 'none';
+        if (shouldResume) {
+            const savedGame = JSON.parse(localStorage.getItem('f1_saved_game'));
+            score = savedGame.score;
+            hearts = savedGame.hearts;
+            startTime = Date.now() - (savedGame.time * 1000);
+            localStorage.removeItem('f1_saved_game');
+            
+            document.getElementById('screen-start4').style.display = 'none';
+            document.getElementById('screen-guide').style.display = 'none';
+            startCountdownAfterResume(); 
+        } else {
+            localStorage.removeItem('f1_saved_game');
+        }
+    }
+
+    function goToGuideScreen() {
+        document.getElementById('screen-start4').style.display = 'none';
+        document.getElementById('screen-guide').style.display = 'flex';
+    }
+
+    // --- HÀM XỬ LÝ ĐẾM NGƯỢC VÀ ÂM THANH THEO YÊU CẦU ---
+    function startCountdown() {
+        document.getElementById('screen-guide').style.display = 'none';
+        
+        // Ngắt nhạc nền menu
+        let music = document.getElementById('bgMusic');
+        music.pause();
+        music.currentTime = 0;
+
+        document.getElementById('game-container').style.display = 'flex';
+        document.getElementById('stats-container').style.display = 'flex';
+
+        resizeCanvas();
+        window.addEventListener('resize', resizeCanvas);
+        drawInitialScene();
+
+        // Phát nhạc đếm ngược (start.mp3)
+        let startSound = document.getElementById('startSound');
+        let playMusic = document.getElementById('playMusic');
+        
+        // Đảm bảo dừng nhạc game nếu đang phát dở
+        playMusic.pause();
+        playMusic.currentTime = 0;
+
+        if (isSoundOn && startSound) {
+            startSound.currentTime = 0;
+            startSound.play().catch(() => {});
+            
+            // Lắng nghe sự kiện kết thúc của start.mp3 để chuyển sang play.mp3
+            startSound.onended = () => {
+                if (isSoundOn && gameRunning && !gameWon) {
+                    playMusic.currentTime = 0;
+                    playMusic.play().catch(() => {});
+                }
+            };
+        }
+
+        let overlay = document.getElementById('countdown-overlay');
+        let textElem = document.getElementById('countdown-text');
+        overlay.style.display = 'flex';
+        let count = 3;
+        textElem.innerText = count;
+
+        let timer = setInterval(() => {
+            count--;
+            if (count > 0) {
+                textElem.innerText = count;
+            } else if (count === 0) {
+                textElem.innerText = "START!";
+            } else {
+                clearInterval(timer);
+                overlay.style.display = 'none';
+                
+                // Phòng hờ nếu startSound ngắn hơn thời gian đếm ngược hoặc không bắt được sự kiện onended
+                if (isSoundOn && playMusic.paused && !gameWon) {
+                    playMusic.currentTime = 0;
+                    playMusic.play().catch(() => {});
+                }
+
+                startGameLoop();
+
+                setTimeout(() => { showRoadStartText = true; }, 2000);
+                setTimeout(() => { showFinish = true; }, 15000);
+            }
+        }, 1000);
+    }
+
+    function openMenu(e) {
+        if (e) e.stopPropagation();
+        gameRunning = false;
+        let playMusic = document.getElementById('playMusic');
+        playMusic.pause(); // Tạm dừng nhạc game khi mở menu
+        document.getElementById('menu-overlay').style.display = 'flex';
+    }
+
+    function continueGame() {
+        document.getElementById('menu-overlay').style.display = 'none';
+        if (isGameStarted && !gameWon) {
+            gameRunning = true;
+            if (isSoundOn) {
+                document.getElementById('playMusic').play().catch(() => {});
+            }
+            requestAnimationFrame(updateGame);
+        }
+    }
+
+    function exitGame() {
+        if (isGameStarted || score > 0 || hearts < MAX_HEARTS) {
+            const savedData = {
+                score: score,
+                hearts: hearts,
+                time: Math.floor((Date.now() - startTime) / 1000)
+            };
+            localStorage.setItem('f1_saved_game', JSON.stringify(savedData));
+        }
+
+        document.getElementById('menu-overlay').style.display = 'none';
+        gameRunning = false;
+        isGameStarted = false;
+        
+        // Dừng tất cả các nguồn âm thanh
+        document.getElementById('startSound').pause();
+        document.getElementById('playMusic').pause();
+        document.getElementById('winSound').pause();
+
+        document.getElementById('game-container').style.display = 'none';
+        document.getElementById('stats-container').style.display = 'none';
+        document.getElementById('screen-guide').style.display = 'none';
+        document.getElementById('gameOverOverlay').style.display = 'none';
+        hearts = MAX_HEARTS;
+        updateHeartsUI();
+        document.getElementById('screen-start3').style.display = 'flex';
+        document.getElementById('screen-start4').style.display = 'none';
+        tryPlayMusic();
+    }
+
+    function toggleSound() {
+        let isChecked = document.getElementById('soundToggle').checked;
+        isSoundOn = isChecked;
+        document.getElementById('soundStatusText').innerText = isChecked ? "SOUND: ON" : "SOUND: OFF";
+        let music = document.getElementById('bgMusic');
+        let playMusic = document.getElementById('playMusic');
+        
+        if (isChecked) {
+            if (document.getElementById('game-container').style.display === 'none') {
+                music.play();
+            } else if (gameRunning && !gameWon) {
+                playMusic.play().catch(() => {});
+            }
+        } else {
+            music.pause();
+            playMusic.pause();
+            document.getElementById('startSound').pause();
+            document.getElementById('winSound').pause();
+        }
+    }
+
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    ctx.imageSmoothingEnabled = false;
+
+    const grassImg = new Image(); grassImg.src = 'grass.png';
+    const f1Img = new Image(); f1Img.src = 'f1.png';
+    const treeImg = new Image(); treeImg.src = 'tree.png';
+    const obstacleImageSources = ['ob1.png', 'ob2.png'];
+    const obstaclesImgs = obstacleImageSources.map(src => { let img = new Image(); img.src = src; return img; });
+    const heartImg = new Image(); heartImg.src = 'heart.png';
+    const cupImg = new Image(); cupImg.src = 'cup.png';
+
+    let score = 0;
+    let startTime = 0;
+    let gameRunning = false;
+    let bgY = 0;
+    let finishLineY = -1500; 
+    let showFinish = false;
+    let gameWon = false;
+    let hasPlayedWinSound = false;
+
+    const MAX_HEARTS = 5;
+    let hearts = MAX_HEARTS;
+    const HEART_SPAWN_CHANCE = 0.12;
+    const MIN_HEART_OBSTACLE_DISTANCE = 500;
+
+    const COLLISION_COOLDOWN = 900;
+    let lastCollisionTime = 0;
+    let hitSound = null;
+
+    let startLineY = 0;
+    let roadStartOffset = 0;
+    let showRoadStartText = false;
+    const ROAD_WIDTH_PERCENT = 0.6;
+    const ROAD_COLOR = '#555555';
+    const LINE_COLOR = '#FFFFFF';
+    const LINE_WIDTH = 6;
+    const LINE_DASH_LENGTH = 30;
+    const LINE_GAP_LENGTH = 20;
+
+    let car = { x: 0, y: 0, width: 150, height: 230, lane: 0 };
+    let obstacles = [];
+    let heartsOnRoad = [];
+    let scenery = [];
+    let gameInterval;
+    let sceneryInterval;
+
+    function updateHeartsUI() {
+        const row = document.getElementById('hearts-row');
+        if (!row) return;
+        row.innerHTML = '';
+        for (let i = 0; i < MAX_HEARTS; i++) {
+            const img = document.createElement('img');
+            img.src = 'heart.png';
+            img.className = 'heart-icon' + (i < hearts ? '' : ' lost');
+            row.appendChild(img);
+        }
+    }
+
+    function loseHeart() {
+        if (!gameRunning || gameWon) return;
+        const now = Date.now();
+        if (now - lastCollisionTime < COLLISION_COOLDOWN) return;
+        lastCollisionTime = now;
+        hearts = Math.max(0, hearts - 1);
+        updateHeartsUI();
+
+        if (hitSound && isSoundOn) {
+            hitSound.currentTime = 0;
+            hitSound.play().catch(() => {});
+        }
+        if (hearts <= 0) endGame();
+    }
+
+    function showHeartBonus(x, y, text) {
+        const bonus = document.getElementById('heartBonusText');
+        bonus.innerText = text;
+        bonus.style.left = `${x}px`;
+        bonus.style.top = `${y}px`;
+        bonus.classList.remove('show');
+        void bonus.offsetWidth;
+        bonus.classList.add('show');
+        setTimeout(() => bonus.classList.remove('show'), 700);
+    }
+
+    function collectHeart(heart) {
+        if (heart.collected || gameWon) return;
+        heart.collected = true;
+        let bonusText = '';
+        if (hearts < MAX_HEARTS) {
+            hearts += 1;
+            score += 10;
+            bonusText = '+10 ❤️';
+        } else {
+            hearts = MAX_HEARTS;
+            score += 15;
+            bonusText = '+15 ⭐';
+        }
+        updateHeartsUI();
+        showHeartBonus(heart.x, heart.y, bonusText);
+    }
+
+    function endGame() {
+        gameRunning = false;
+        isGameStarted = false;
+        document.getElementById('playMusic').pause();
+        if (gameInterval) clearInterval(gameInterval);
+        if (sceneryInterval) clearInterval(sceneryInterval);
+        document.getElementById('finalScore').innerText = score;
+        document.getElementById('gameOverOverlay').style.display = 'flex';
+    }
+
+    function restartGame() {
+        document.getElementById('gameOverOverlay').style.display = 'none';
+        hearts = MAX_HEARTS;
+        updateHeartsUI();
+        lastCollisionTime = 0;
+        stepCounter = 0;
+        rightHandCounter = 0;
+        leftHandCounter = 0;
+        document.getElementById('rightHandCountText').innerText = "0 lần";
+        document.getElementById('leftHandCountText').innerText = "0 lần";
+        document.getElementById('stepCountText').innerText = "0 bước";
+        startCountdown();
+    }
+
+    function resizeCanvas() {
+        canvas.width = canvas.parentElement.clientWidth;
+        canvas.height = canvas.parentElement.clientHeight;
+        car.y = canvas.height - car.height - 30;
+        startLineY = car.y - 120;
+    }
+
+    function drawInitialScene() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        if (grassImg.complete) ctx.drawImage(grassImg, 0, 0, canvas.width, canvas.height);
+        else { ctx.fillStyle = '#2d5a27'; ctx.fillRect(0, 0, canvas.width, canvas.height); }
+
+        let roadWidth = canvas.width * ROAD_WIDTH_PERCENT;
+        let roadLeftX = (canvas.width - roadWidth) / 2;
+        ctx.fillStyle = ROAD_COLOR;
+        ctx.fillRect(roadLeftX, 0, roadWidth, canvas.height);
+
+        ctx.lineWidth = LINE_WIDTH;
+        ctx.strokeStyle = LINE_COLOR;
+        ctx.setLineDash([LINE_DASH_LENGTH, LINE_GAP_LENGTH]);
+        let centerX = canvas.width / 2;
+        ctx.beginPath(); ctx.moveTo(centerX, 0); ctx.lineTo(centerX, canvas.height); ctx.stroke();
+        ctx.setLineDash([]);
+
+        let laneWidth = roadWidth / 2;
+        car.x = car.lane === 0 ? roadLeftX + laneWidth * 0.5 - car.width / 2 : roadLeftX + laneWidth * 1.5 - car.width / 2;
+        if (f1Img.complete) ctx.drawImage(f1Img, car.x, car.y, car.width, car.height);
+    }
+
+    function startGameLoop() {
+        isGameStarted = true;
+        gameRunning = true;
+        startTime = Date.now();
+        score = 0;
+        hearts = MAX_HEARTS;
+        lastCollisionTime = 0;
+        stepCounter = 0;
+        rightHandCounter = 0;
+        leftHandCounter = 0;
+        document.getElementById('rightHandCountText').innerText = "0 lần";
+        document.getElementById('leftHandCountText').innerText = "0 lần";
+        document.getElementById('stepCountText').innerText = "0 bước";
+        
+        obstacles = [];
+        heartsOnRoad = [];
+        scenery = [];
+        bgY = 0;
+
+        finishLineY = -1500;
+        showFinish = false;
+        gameWon = false;
+        hasPlayedWinSound = false;
+
+        updateHeartsUI();
+        document.getElementById('gameOverOverlay').style.display = 'none';
+        roadStartOffset = 0;
+        showRoadStartText = false;
+
+        if (gameInterval) clearInterval(gameInterval);
+        if (sceneryInterval) clearInterval(sceneryInterval);
+
+        gameInterval = setInterval(() => {
+            if (!gameRunning || gameWon) return;
+            let lane = Math.random() < 0.5 ? 0 : 1;
+            let randomImg = obstaclesImgs[Math.floor(Math.random() * obstaclesImgs.length)];
+            let roadWidth = canvas.width * ROAD_WIDTH_PERCENT;
+            let roadLeftX = (canvas.width - roadWidth) / 2;
+            let laneWidth = roadWidth / 2;
+            let targetX = lane === 0 ? roadLeftX + laneWidth * 0.5 : roadLeftX + laneWidth * 1.5;
+
+            obstacles.push({ x: targetX, y: -150, width: 100, height: 100, img: randomImg, passed: false });
+
+            if (Math.random() < HEART_SPAWN_CHANCE) {
+                heartsOnRoad.push({ x: targetX, y: -150 - MIN_HEART_OBSTACLE_DISTANCE, width: 70, height: 70, collected: false });
+            }
+        }, 2000);
+
+        sceneryInterval = setInterval(() => {
+            if (!gameRunning) return;
+            let side = Math.random() < 0.5 ? 'left' : 'right';
+            let roadWidth = canvas.width * ROAD_WIDTH_PERCENT;
+            let roadLeftX = (canvas.width - roadWidth) / 2;
+            let roadRightX = roadLeftX + roadWidth;
+            let targetX = side === 'left' ? Math.random() * (roadLeftX - 70) : roadRightX + Math.random() * (canvas.width - roadRightX - 70);
+
+            scenery.push({ x: targetX, y: -200, width: 70, height: 70, img: treeImg });
+        }, 800);
+
+        requestAnimationFrame(updateGame);
+    }
+
+    function updateGame() {
+        if (!gameRunning) return;
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        let bgSpeed = 7;
+        
+        if (!gameWon) {
+            bgY += bgSpeed;
+            if (bgY >= canvas.height) bgY = 0;
+        }
+
+        if (grassImg.complete) {
+            ctx.drawImage(grassImg, 0, bgY - canvas.height, canvas.width, canvas.height);
+            ctx.drawImage(grassImg, 0, bgY, canvas.width, canvas.height);
+        } else {
+            ctx.fillStyle = '#2d5a27'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+        }
+
+        let roadWidth = canvas.width * ROAD_WIDTH_PERCENT;
+        let roadLeftX = (canvas.width - roadWidth) / 2;
+        ctx.fillStyle = ROAD_COLOR;
+        ctx.fillRect(roadLeftX, bgY - canvas.height, roadWidth, canvas.height);
+        ctx.fillRect(roadLeftX, bgY, roadWidth, canvas.height);
+
+        ctx.lineWidth = LINE_WIDTH;
+        ctx.strokeStyle = LINE_COLOR;
+        ctx.setLineDash([LINE_DASH_LENGTH, LINE_GAP_LENGTH]);
+        ctx.lineDashOffset = -bgY;
+        let centerX = canvas.width / 2;
+        ctx.beginPath(); ctx.moveTo(centerX, 0); ctx.lineTo(centerX, canvas.height * 2); ctx.stroke();
+        ctx.setLineDash([]);
+
+        if (showRoadStartText) {
+            roadStartOffset += (gameWon ? 0 : bgSpeed);
+            let currentStartLineY = startLineY + roadStartOffset;
+            if (currentStartLineY < canvas.height + 100) {
+                ctx.save();
+                ctx.font = "bold 36px 'Press Start 2P', monospace";
+                ctx.fillStyle = "rgba(255, 255, 255, 0.85)";
+                ctx.textAlign = "center"; ctx.textBaseline = "middle";
+                ctx.fillText("START", centerX, currentStartLineY);
+                ctx.restore();
+            }
+        }
+
+        for (let i = scenery.length - 1; i >= 0; i--) {
+            let sc = scenery[i];
+            if (!gameWon) sc.y += bgSpeed;
+            if (sc.img.complete) ctx.drawImage(sc.img, sc.x, sc.y, sc.width, sc.height);
+            if (sc.y > canvas.height) scenery.splice(i, 1);
+        }
+
+        if (!gameWon) {
+            for (let i = heartsOnRoad.length - 1; i >= 0; i--) {
+                let heart = heartsOnRoad[i];
+                heart.y += bgSpeed;
+                if (heartImg.complete) ctx.drawImage(heartImg, heart.x - heart.width / 2, heart.y, heart.width, heart.height);
+
+                if (car.x + 12 < heart.x + heart.width / 2 && car.x + car.width - 12 > heart.x - heart.width / 2 && car.y + 12 < heart.y + heart.height && car.y + car.height - 20 > heart.y) {
+                    collectHeart(heart);
+                    heartsOnRoad.splice(i, 1);
+                    continue;
+                }
+                if (heart.y > canvas.height + 100) heartsOnRoad.splice(i, 1);
+            }
+        }
+
+        if (!gameWon) {
+            for (let i = obstacles.length - 1; i >= 0; i--) {
+                let ob = obstacles[i];
+                ob.y += bgSpeed;
+                if (ob.img.complete) ctx.drawImage(ob.img, ob.x - ob.width / 2, ob.y, ob.width, ob.height);
+
+                if (car.x + 10 < ob.x + ob.width / 2 && car.x + car.width - 10 > ob.x - ob.width / 2 && car.y + 10 < ob.y + ob.height && car.y + car.height - 20 > ob.y) {
+                    loseHeart();
+                    obstacles.splice(i, 1);
+                    continue;
+                }
+                if (ob.y > canvas.height && !ob.passed) {
+                    ob.passed = true;
+                    score += 10;
+                }
+                if (ob.y > canvas.height + 200) obstacles.splice(i, 1);
+            }
+        }
+
+        if (showFinish) {
+            if (!gameWon) finishLineY += bgSpeed;
+            if (finishLineY < canvas.height + 100 && finishLineY > -100) {
+                ctx.save();
+                ctx.font = "bold 40px 'Press Start 2P', monospace";
+                ctx.fillStyle = "yellow";
+                ctx.textAlign = "center"; ctx.textBaseline = "middle";
+                ctx.fillText("FINISH", centerX, finishLineY);
+                ctx.restore();
+            }
+            if (car.y <= finishLineY + 50 && !gameWon) {
+                gameWon = true;
+                obstacles = [];
+                heartsOnRoad = [];
+            }
+        }
+
+        let laneWidth = roadWidth / 2;
+        car.x = car.lane === 0 ? roadLeftX + laneWidth * 0.5 - car.width / 2 : roadLeftX + laneWidth * 1.5 - car.width / 2;
+        if (f1Img.complete) ctx.drawImage(f1Img, car.x, car.y, car.width, car.height);
+
+        // --- XỬ LÝ CHUYỂN QUA NHẠC VỀ ĐÍCH (win.mp3) KHI VỀ ĐÍCH ---
+        if (gameWon) {
+            // Ngắt nhạc chơi game (play.mp3)
+            let playMusic = document.getElementById('playMusic');
+            playMusic.pause();
+
+            if (!hasPlayedWinSound && isSoundOn) {
+                hasPlayedWinSound = true;
+                let winSound = document.getElementById('winSound');
+                if (winSound) {
+                    winSound.currentTime = 0;
+                    winSound.play().catch(() => {});
+                }
+            }
+            ctx.save();
+            ctx.font = "bold 50px 'Press Start 2P', monospace";
+            ctx.fillStyle = "#ffcc00"; ctx.strokeStyle = "#000"; ctx.lineWidth = 6;
+            ctx.textAlign = "center"; ctx.textBaseline = "middle";
+            let winTextY = canvas.height / 2 - 75;
+            ctx.strokeText("YOU WIN", centerX, winTextY);
+            ctx.fillText("YOU WIN", centerX, winTextY);
+            if (cupImg.complete) ctx.drawImage(cupImg, centerX - 70, winTextY + 35, 140, 140);
+            ctx.restore();
+        }
+
+        document.getElementById('scoreVal').innerText = score;
+        if (!gameWon) document.getElementById('timeVal').innerText = Math.floor((Date.now() - startTime) / 1000);
+
+        requestAnimationFrame(updateGame);
+    }
+
+    window.addEventListener('keydown', (e) => {
+        if (!gameRunning || gameWon) return;
+        if (e.key === 'ArrowLeft') car.lane = 0;
+        if (e.key === 'ArrowRight') car.lane = 1;
+    });
+
+    function initMediaPipeCameraOnly() {
+        const videoElement = document.getElementById('webcam');
+        const outputCanvas = document.getElementById('output_canvas');
+        const canvasCtx = outputCanvas.getContext('2d');
+
+        const pose = new Pose({
+            locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`
+        });
+
+        pose.setOptions({
+            modelComplexity: 2,
+            smoothLandmarks: true,
+            enableSegmentation: false,
+            minDetectionConfidence: 0.6,
+            minTrackingConfidence: 0.6
+        });
+
+        pose.onResults((results) => {
+            if (document.getElementById('game-container').style.display === 'none') {
+                tryPlayMusic();
+            }
+
+            outputCanvas.width = videoElement.videoWidth || 640;
+            outputCanvas.height = videoElement.videoHeight || 480;
+
+            canvasCtx.save();
+            canvasCtx.clearRect(0, 0, outputCanvas.width, outputCanvas.height);
+
+            let alertBoxElem = document.getElementById('alertBox');
+
+            if (results.poseLandmarks) {
+                drawConnectors(canvasCtx, results.poseLandmarks, POSE_CONNECTIONS, { color: '#FFFFFF', lineWidth: 10 });
+                drawLandmarks(canvasCtx, results.poseLandmarks, { color: '#FF0000', lineWidth: 5, radius: 2 });
+
+                if (gameRunning && !gameWon) {
+                    let leftWrist = results.poseLandmarks[15];
+                    let rightWrist = results.poseLandmarks[16];
+                    let leftShoulder = results.poseLandmarks[11];
+                    let rightShoulder = results.poseLandmarks[12];
+                    
+                    let leftKnee = results.poseLandmarks[23];
+                    let rightKnee = results.poseLandmarks[24];
+                    let now = Date.now();
+
+                    if (leftWrist && rightWrist && leftShoulder && rightShoulder) {
+                        let isLeftHandUp = leftWrist.y < leftShoulder.y - 0.05;
+                        let isRightHandUp = rightWrist.y < rightShoulder.y - 0.05;
+
+                        if (isLeftHandUp && !isRightHandUp) {
+                            car.lane = 0;
+                            if (now - lastLeftHandTime > HAND_COOLDOWN) {
+                                leftHandCounter++;
+                                lastLeftHandTime = now;
+                                document.getElementById('leftHandCountText').innerText = leftHandCounter + " lần";
+                            }
+                            alertBoxElem.style.color = "#4CAF50";
+                            alertBoxElem.style.borderColor = "#4CAF50";
+                            alertBoxElem.style.background = "rgba(76, 175, 80, 0.2)";
+                            alertBoxElem.innerText = "ĐANG CHUYỂN SANG LÀN TRÁI!";
+                        } else if (isRightHandUp && !isLeftHandUp) {
+                            car.lane = 1;
+                            if (now - lastRightHandTime > HAND_COOLDOWN) {
+                                rightHandCounter++;
+                                lastRightHandTime = now;
+                                document.getElementById('rightHandCountText').innerText = rightHandCounter + " lần";
+                            }
+                            alertBoxElem.style.color = "#4CAF50";
+                            alertBoxElem.style.borderColor = "#4CAF50";
+                            alertBoxElem.style.background = "rgba(76, 175, 80, 0.2)";
+                            alertBoxElem.innerText = "ĐANG CHUYỂN SANG LÀN PHẢI!";
+                        } else {
+                            alertBoxElem.style.color = "#ffcc00";
+                            alertBoxElem.style.borderColor = "#ffcc00";
+                            alertBoxElem.style.background = "rgba(255, 204, 0, 0.2)";
+                            alertBoxElem.innerText = "GIƠ MỘT TAY LÊN ĐỂ ĐỔI LÀN!";
+                        }
+                    }
+
+                    if (leftKnee && rightKnee) {
+                        let isLeftKneeUp = leftKnee.y < KNEE_Y_THRESHOLD;
+                        let isRightKneeUp = rightKnee.y < KNEE_Y_THRESHOLD;
+
+                        if ((isLeftKneeUp || isRightKneeUp) && (now - lastStepTime > STEP_COOLDOWN)) {
+                            stepCounter++;
+                            lastStepTime = now;
+                            document.getElementById('stepCountText').innerText = stepCounter + " bước";
+                        }
+                    }
+                }
+            } else {
+                alertBoxElem.style.color = "#ff4444";
+                alertBoxElem.style.borderColor = "#ff4444";
+                alertBoxElem.style.background = "rgba(255, 68, 68, 0.2)";
+                alertBoxElem.innerText = "HÃY BƯỚC VÀO VÙNG QUAY CỦA CAMERA!";
+            }
+
+            canvasCtx.restore();
+        });
+
+        const camera = new Camera(videoElement, {
+            onFrame: async () => {
+                await pose.send({ image: videoElement });
+            },
+            width: 640,
+            height: 480
+        });
+
+        camera.start();
+    }
+</script>
+
+</body>
+</html>
